@@ -1,0 +1,26 @@
+{
+  "model": "google/gemma-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Извлеки имя и возраст из текста: 'Иван, 25 лет'"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "person_info",
+      "strict": true,
+      "description": "Схема для извлечения данных о человеке",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "age": { "type": "integer" }
+        },
+        "required": ["name", "age"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
