@@ -525,7 +525,6 @@
         <div class="note" id="dlg-status"></div>
 
         <div class="row">
-          <button class="btn ghost" type="button" id="dlg-reset" title="Сбросить URL и модель к Gemini по умолчанию">Сбросить к Gemini</button>
           <button class="btn ghost" type="button" id="dlg-test">Проверить</button>
           <button class="btn ghost" type="button" id="dlg-cancel">Отмена</button>
           <button class="btn" type="button" id="dlg-save">Сохранить</button>
@@ -1234,7 +1233,6 @@ const el = {
   dlgSave: document.getElementById("dlg-save"),
   dlgCancel: document.getElementById("dlg-cancel"),
   dlgTest: document.getElementById("dlg-test"),
-  dlgReset: document.getElementById("dlg-reset"),
 };
 
 /* ================= AVATAR ENGINE ================= */
@@ -2179,13 +2177,6 @@ function bindSettingsHandlers() {
     const cfg = readSettingsFromForm();
     applySettings(cfg);
     closeSettings();
-  });
-  el.dlgReset.addEventListener("click", () => {
-    el.llmUrl.value = LLM_DEFAULTS.baseUrl;
-    el.llmModel.value = LLM_DEFAULTS.model;
-    el.llmTemp.value = String(LLM_DEFAULTS.temperature);
-    el.dlgStatus.className = "note ok";
-    el.dlgStatus.textContent = "URL и модель сброшены к Gemini. Не забудьте вставить ваш API-ключ и нажать «Сохранить».";
   });
   el.dlgTest.addEventListener("click", async () => {
     const cfg = readSettingsFromForm();
