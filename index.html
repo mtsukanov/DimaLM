@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Дима — терминал</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2307090a'/%3E%3Ctext x='8' y='12' font-family='monospace' font-size='12' fill='%2300ff66' text-anchor='middle'%3E%3E%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
     --bg: #07090a;
@@ -1167,22 +1168,35 @@ const LLM_MAX_CHARS   = 420;      // если модель «улетела» �
 const SEED_TOPK       = 4;        // из скольки лучших затравок делаем взвешенный random
 
 /* ================= LLM CONFIG ================= */
+const LLM_CONFIG_VERSION = 2;  // bump → старые localStorage конфиги сбрасываются к дефолтам
 const LLM_DEFAULTS = {
   enabled: true,
   baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
   model: "gemini-2.5-flash",
   apiKey: "",
   temperature: 0.7,
+  version: LLM_CONFIG_VERSION,
 };
 const LLM_CONFIG = Object.assign({}, LLM_DEFAULTS);
 function loadLlmConfig() {
   try {
     const raw = localStorage.getItem("dima_llm_config");
-    if (raw) Object.assign(LLM_CONFIG, JSON.parse(raw));
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if ((saved.version || 1) < LLM_CONFIG_VERSION) {
+      // Старый конфиг (например, ещё с LM Studio дефолтами). Применяем новые
+      // дефолты, но сохраняем API-ключ если пользователь его уже ввёл.
+      const preservedKey = (saved.apiKey || "").trim();
+      Object.assign(LLM_CONFIG, LLM_DEFAULTS, { apiKey: preservedKey });
+      saveLlmConfig();
+      return;
+    }
+    Object.assign(LLM_CONFIG, saved, { version: LLM_CONFIG_VERSION });
   } catch (e) { /* localStorage may be unavailable — это ок */ }
 }
 function saveLlmConfig() {
   try {
+    LLM_CONFIG.version = LLM_CONFIG_VERSION;
     localStorage.setItem("dima_llm_config", JSON.stringify(LLM_CONFIG));
   } catch (e) { /* игнор */ }
 }
