@@ -392,6 +392,7 @@
   }
   .field input[type=text],
   .field input[type=url],
+  .field input[type=password],
   .field input[type=number] {
     width: 100%;
     background: rgba(0,0,0,0.4);
@@ -417,6 +418,23 @@
   }
   .dialog .note.err { color: var(--danger); }
   .dialog .note.ok  { color: var(--accent); }
+  .dialog .note.howto {
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--accent-dim);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+  }
+  .dialog .note.howto a { color: var(--accent); }
+  .dialog details summary {
+    list-style: none;
+    user-select: none;
+  }
+  .dialog details summary::-webkit-details-marker { display: none; }
+  .dialog details summary::before { content: "▸ "; }
+  .dialog details[open] summary::before { content: "▾ "; }
   .btn {
     background: transparent;
     border: 1px solid var(--accent-dim);
@@ -462,30 +480,51 @@
       <div class="dialog">
         <h3 id="dlg-title">// Настройки LLM</h3>
 
+        <div class="note howto">
+          <strong>Как подключить за минуту (бесплатно):</strong>
+          <ol style="margin: 6px 0 0 18px; padding: 0;">
+            <li>Откройте <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> и войдите через Google.</li>
+            <li>Нажмите <em>Create API key</em>, выберите проект, скопируйте ключ.</li>
+            <li>Вставьте ключ в поле <strong>API-ключ</strong> ниже и нажмите <strong>Сохранить</strong>.</li>
+          </ol>
+          <div style="margin-top: 6px; opacity: .7;">Ключ хранится только в вашем браузере (localStorage), никуда не отправляется. Используется бесплатная модель Gemini 2.0 Flash.</div>
+        </div>
+
         <div class="field toggle">
           <input type="checkbox" id="llm-enabled" />
-          <label for="llm-enabled">Использовать локальную модель (LM Studio)</label>
+          <label for="llm-enabled">Включить LLM</label>
         </div>
 
         <div class="field">
-          <label for="llm-url">URL сервера</label>
-          <input type="url" id="llm-url" placeholder="http://127.0.0.1:1234" />
+          <label for="llm-api-key">API-ключ</label>
+          <input type="password" id="llm-api-key" placeholder="gsk_..." autocomplete="off" />
         </div>
 
-        <div class="field">
-          <label for="llm-model">Модель</label>
-          <input type="text" id="llm-model" placeholder="google/gemma-4-e2b" />
-        </div>
+        <details style="margin: 8px 0 4px 0;">
+          <summary style="cursor: pointer; opacity: .75; font-size: 12px;">Расширенные настройки (URL, модель, температура)</summary>
 
-        <div class="field">
-          <label for="llm-temp">Температура (0.1 — 1.5)</label>
-          <input type="number" id="llm-temp" step="0.1" min="0" max="2" />
-        </div>
+          <div class="field" style="margin-top: 10px;">
+            <label for="llm-url">URL сервера</label>
+            <input type="url" id="llm-url" placeholder="https://generativelanguage.googleapis.com/v1beta/openai" />
+          </div>
 
-        <div class="note">Реплика из <code>replies_mapping</code> идёт в модель как <em>затравка</em> — её смысл и ключевые слова сохраняются. Если модель недоступна — подставится исходная реплика.</div>
+          <div class="field">
+            <label for="llm-model">Модель</label>
+            <input type="text" id="llm-model" placeholder="gemini-2.5-flash" />
+          </div>
+
+          <div class="field">
+            <label for="llm-temp">Температура (0.1 — 1.5)</label>
+            <input type="number" id="llm-temp" step="0.1" min="0" max="2" />
+          </div>
+
+          <div class="note">Альтернативы AI Studio: <strong>Groq</strong> — URL <code>https://api.groq.com/openai</code>, модель <code>llama-3.1-8b-instant</code>, ключ на <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> (учтите ограничение 6–12K токенов/мин — большой промпт может не влезть). Локальный <strong>LM Studio</strong> — URL <code>http://127.0.0.1:1234</code>, поле «API-ключ» оставьте пустым.</div>
+        </details>
+
         <div class="note" id="dlg-status"></div>
 
         <div class="row">
+          <button class="btn ghost" type="button" id="dlg-reset" title="Сбросить URL и модель к Gemini по умолчанию">Сбросить к Gemini</button>
           <button class="btn ghost" type="button" id="dlg-test">Проверить</button>
           <button class="btn ghost" type="button" id="dlg-cancel">Отмена</button>
           <button class="btn" type="button" id="dlg-save">Сохранить</button>
@@ -1129,9 +1168,10 @@ const SEED_TOPK       = 4;        // из скольки лучших затра
 
 /* ================= LLM CONFIG ================= */
 const LLM_DEFAULTS = {
-  enabled: false,
-  baseUrl: "http://127.0.0.1:1234",
-  model: "google/gemma-4-e2b",
+  enabled: true,
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+  model: "gemini-2.5-flash",
+  apiKey: "",
   temperature: 0.7,
 };
 const LLM_CONFIG = Object.assign({}, LLM_DEFAULTS);
@@ -1174,11 +1214,13 @@ const el = {
   llmEnabled: document.getElementById("llm-enabled"),
   llmUrl: document.getElementById("llm-url"),
   llmModel: document.getElementById("llm-model"),
+  llmApiKey: document.getElementById("llm-api-key"),
   llmTemp: document.getElementById("llm-temp"),
   dlgStatus: document.getElementById("dlg-status"),
   dlgSave: document.getElementById("dlg-save"),
   dlgCancel: document.getElementById("dlg-cancel"),
   dlgTest: document.getElementById("dlg-test"),
+  dlgReset: document.getElementById("dlg-reset"),
 };
 
 /* ================= AVATAR ENGINE ================= */
@@ -1791,33 +1833,60 @@ const DIMA_JSON_SCHEMA = {
 
 async function llmCompose(signal) {
   const url = LLM_CONFIG.baseUrl.replace(/\/+$/, "") + "/v1/chat/completions";
+  const headers = { "Content-Type": "application/json" };
+  const apiKey = (LLM_CONFIG.apiKey || "").trim();
+  if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+  // Строгий json_schema — только для LM Studio (127.0.0.1/localhost).
+  // Облачные провайдеры (Groq, AI Studio, OpenRouter) понимают json_object,
+  // а структура полей уже описана в системном промпте.
+  const isLocal = /127\.0\.0\.1|localhost/i.test(LLM_CONFIG.baseUrl || "");
+  const responseFormat = isLocal ? DIMA_JSON_SCHEMA : { type: "json_object" };
+  // Стоп-последовательности — страховка от reasoning-leak.
+  // LM Studio глотает длинный список, Groq лимитирован 4-мя, OpenAI лимитирован 4-мя.
+  // Для облачных оставляем самые частые триггеры утечек.
+  const stopFull = [
+    "\n\n**",
+    "Internal Monologue",
+    "Final Response",
+    "Final Answer",
+    "**Draft",
+    "**Step ",
+    "Шаг 1", "Шаг 2", "Шаг 3", "Шаг 4", "Шаг 5",
+    "**Алгоритм",
+  ];
+  const stopShort = ["\n\n**", "Internal Monologue", "**Draft", "**Алгоритм"];
   const body = {
     model: LLM_CONFIG.model,
     messages: buildLlmMessages(),
     temperature: Number(LLM_CONFIG.temperature) || 0.7,
     max_tokens: LLM_MAX_TOKENS,
     // Структурированный вывод — главное средство от reasoning-leak.
-    response_format: DIMA_JSON_SCHEMA,
-    // Стоп-последовательности — страховка на случай, если сервер игнорит response_format.
-    stop: [
-      "\n\n**",
-      "Internal Monologue",
-      "Final Response",
-      "Final Answer",
-      "**Draft",
-      "**Step ",
-      "Шаг 1", "Шаг 2", "Шаг 3", "Шаг 4", "Шаг 5",
-      "**Алгоритм",
-    ],
+    response_format: responseFormat,
+    stop: isLocal ? stopFull : stopShort,
+    // Отключаем «thinking» у Gemini 2.5 и OpenAI o-моделей — они съедают max_tokens
+    // на внутренние рассуждения, и ответ обрывается. Другие провайдеры это поле игнорируют.
+    reasoning_effort: "none",
     stream: false,
   };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal,
-  });
-  if (!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText);
+  // Ретраи на временные ошибки (503 «high demand», 429 с retry-after).
+  let res;
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
+    if (res.ok) break;
+    const transient = res.status === 503 || res.status === 502 || res.status === 504 || res.status === 429;
+    if (!transient || attempt === MAX_ATTEMPTS) break;
+    const retryAfterHdr = parseFloat(res.headers.get("retry-after") || "0");
+    const delayMs = Math.min(8000, Math.max(800, retryAfterHdr * 1000 || attempt * 1500));
+    console.warn(`[LLM] HTTP ${res.status} — retry ${attempt}/${MAX_ATTEMPTS - 1} через ${delayMs}мс`);
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  if (!res.ok) {
+    let errBody = "";
+    try { errBody = await res.text(); } catch (e) {}
+    console.error("[LLM] HTTP " + res.status, "URL:", url, "Body:", errBody);
+    throw new Error("HTTP " + res.status + " " + res.statusText + " — " + errBody.slice(0, 300));
+  }
   const data = await res.json();
   const choice = data && data.choices && data.choices[0];
   const message = choice && choice.message;
@@ -2025,6 +2094,7 @@ function openSettings() {
   el.llmEnabled.checked = !!LLM_CONFIG.enabled;
   el.llmUrl.value = LLM_CONFIG.baseUrl || "";
   el.llmModel.value = LLM_CONFIG.model || "";
+  el.llmApiKey.value = LLM_CONFIG.apiKey || "";
   el.llmTemp.value = String(LLM_CONFIG.temperature ?? 0.7);
   el.dlgStatus.textContent = "";
   el.dlgStatus.className = "note";
@@ -2039,22 +2109,38 @@ function readSettingsFromForm() {
     enabled: !!el.llmEnabled.checked,
     baseUrl: (el.llmUrl.value || "").trim() || LLM_DEFAULTS.baseUrl,
     model: (el.llmModel.value || "").trim() || LLM_DEFAULTS.model,
+    apiKey: (el.llmApiKey.value || "").trim(),
     temperature: Math.max(0, Math.min(2, parseFloat(el.llmTemp.value) || LLM_DEFAULTS.temperature)),
   };
+}
+function refreshLlmBadge() {
+  if (!LLM_CONFIG.enabled) {
+    setLlmBadge("off", "LLM отключён");
+    return;
+  }
+  const baseUrl = LLM_CONFIG.baseUrl || "";
+  const isRemote = /^https?:\/\//i.test(baseUrl) && !/127\.0\.0\.1|localhost/i.test(baseUrl);
+  if (isRemote && !(LLM_CONFIG.apiKey || "").trim()) {
+    setLlmBadge("err", "Не задан API-ключ — откройте ⚙ настройки и вставьте ключ");
+    return;
+  }
+  setLlmBadge("on", `${LLM_CONFIG.baseUrl} • ${LLM_CONFIG.model}`);
 }
 function applySettings(cfg) {
   Object.assign(LLM_CONFIG, cfg);
   saveLlmConfig();
-  setLlmBadge(LLM_CONFIG.enabled ? "on" : "off",
-              LLM_CONFIG.enabled ? `${LLM_CONFIG.baseUrl} • ${LLM_CONFIG.model}` : "Локальная модель отключена");
+  refreshLlmBadge();
 }
 
 async function testLlmConnection(cfg) {
   const url = cfg.baseUrl.replace(/\/+$/, "") + "/v1/models";
+  const headers = {};
+  const apiKey = (cfg.apiKey || "").trim();
+  if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const r = await fetch(url, { method: "GET", signal: ctrl.signal });
+    const r = await fetch(url, { method: "GET", headers, signal: ctrl.signal });
     clearTimeout(tid);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
@@ -2079,6 +2165,13 @@ function bindSettingsHandlers() {
     const cfg = readSettingsFromForm();
     applySettings(cfg);
     closeSettings();
+  });
+  el.dlgReset.addEventListener("click", () => {
+    el.llmUrl.value = LLM_DEFAULTS.baseUrl;
+    el.llmModel.value = LLM_DEFAULTS.model;
+    el.llmTemp.value = String(LLM_DEFAULTS.temperature);
+    el.dlgStatus.className = "note ok";
+    el.dlgStatus.textContent = "URL и модель сброшены к Gemini. Не забудьте вставить ваш API-ключ и нажать «Сохранить».";
   });
   el.dlgTest.addEventListener("click", async () => {
     const cfg = readSettingsFromForm();
@@ -2106,8 +2199,7 @@ function init() {
   el.avatar.src = resolveAvatarSrc(NEUTRAL_AVATAR);
 
   // индикатор LLM
-  setLlmBadge(LLM_CONFIG.enabled ? "on" : "off",
-              LLM_CONFIG.enabled ? `${LLM_CONFIG.baseUrl} • ${LLM_CONFIG.model}` : "Локальная модель отключена");
+  refreshLlmBadge();
 
   // submit
   el.form.addEventListener("submit", (e) => {
