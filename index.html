@@ -249,6 +249,28 @@
     margin-bottom: 2px;
   }
 
+  .msg.system {
+    align-self: stretch;
+    max-width: 100%;
+    background: rgba(255, 170, 30, 0.07);
+    border-color: rgba(255, 170, 30, 0.45);
+    color: rgba(255, 200, 90, 0.92);
+    text-shadow: 0 0 4px rgba(255, 170, 30, 0.25);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.5;
+    transition: background 0.15s ease;
+  }
+  .msg.system:hover { background: rgba(255, 170, 30, 0.12); }
+  .msg.system::before {
+    content: "SYSTEM:: ";
+    color: rgba(255, 170, 30, 0.65);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
   .caret {
     display: inline-block;
     width: 8px;
@@ -2133,23 +2155,49 @@ function readSettingsFromForm() {
     temperature: Math.max(0, Math.min(2, parseFloat(el.llmTemp.value) || LLM_DEFAULTS.temperature)),
   };
 }
+function isLlmReady() {
+  if (!LLM_CONFIG.enabled) return false;
+  const baseUrl = LLM_CONFIG.baseUrl || "";
+  const isLocal = /127\.0\.0\.1|localhost/i.test(baseUrl);
+  return isLocal || !!(LLM_CONFIG.apiKey || "").trim();
+}
+
 function refreshLlmBadge() {
   if (!LLM_CONFIG.enabled) {
     setLlmBadge("off", "LLM отключён");
     return;
   }
-  const baseUrl = LLM_CONFIG.baseUrl || "";
-  const isRemote = /^https?:\/\//i.test(baseUrl) && !/127\.0\.0\.1|localhost/i.test(baseUrl);
-  if (isRemote && !(LLM_CONFIG.apiKey || "").trim()) {
+  if (!isLlmReady()) {
     setLlmBadge("err", "Не задан API-ключ — откройте ⚙ настройки и вставьте ключ");
     return;
   }
   setLlmBadge("on", `${LLM_CONFIG.baseUrl} • ${LLM_CONFIG.model}`);
 }
+
+function updateLlmWarning() {
+  const existing = document.getElementById("llm-warning");
+  if (isLlmReady()) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return;
+  const div = document.createElement("div");
+  div.className = "msg system";
+  div.id = "llm-warning";
+  div.textContent =
+    "Без подключения к языковой модели у Димы сильно ограничены " +
+    "ментальные способности — он отвечает только заготовленными фразами. " +
+    "Кликните, чтобы настроить API-ключ.";
+  div.title = "Открыть настройки";
+  div.addEventListener("click", openSettings);
+  el.feed.appendChild(div);
+  scrollFeed();
+}
 function applySettings(cfg) {
   Object.assign(LLM_CONFIG, cfg);
   saveLlmConfig();
   refreshLlmBadge();
+  updateLlmWarning();
 }
 
 async function testLlmConnection(cfg) {
@@ -2228,6 +2276,9 @@ function init() {
   // приветственная реплика
   const greet = appendDimaBubble();
   startTypewriter(greet, "Привет. На связи.");
+
+  // если LLM не настроен — показываем предупреждение под приветствием
+  updateLlmWarning();
 
   // запуск пульса
   startHeartbeat();
